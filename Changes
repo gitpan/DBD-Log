@@ -1,5 +1,9 @@
 Revision history for DBD::Log
 
+0.22 - lots of warnings prevented
+     - oracle fully tested
+     - special error handling added
+
 0.21 - first release
 
 0.20 - release candidate, fixed many issues with prepare / execute -

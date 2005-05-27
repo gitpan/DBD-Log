@@ -3,9 +3,10 @@ package DBD::Log;
 # hartog/20041208 - 0.10 - created
 # hartog/20050114 - 0.20 - made ready for release
 # hartog/20050504 - 0.21 - tests added, packaged.
+# hartog/20050524 - 0.22 - warnings prevented, loglines altered.
 
 BEGIN {
-  $DBD::Log::VERSION = "0.21";
+  $DBD::Log::VERSION = "0.22";
 }
 
 use strict;
@@ -122,7 +123,7 @@ sub printLog {
 
   print $fh join("\t", time, map {
     # replace new-lines
-    s/[\r\n]+//g; 
+    s/[\r\n]+//g;
     # replace tabs.
     s/\t/    /g;
 
@@ -136,7 +137,7 @@ sub prepare {
   # prepare is somewhat special - we want to setup a fake $sth.
 
   my $action =
-    @{[caller(1)]}->[3] && @{[caller(1)]}->[3] =~ /prepare_cached/ ? "prepare_cached" : "prepare";
+    [caller(1)]->[3] && [caller(1)]->[3] =~ /prepare_cached/ ? "prepare_cached" : "prepare";
 
   logAction($action, @_);
 
@@ -153,11 +154,10 @@ sub prepare {
 
 
 sub prepare_cached {
-
-  # let's try to do this caching stuff our selves.
-
   my ( $self, $statement, @rest ) = @_;
   my $KEY = $statement . $rest[0];
+
+  # let's try to do this caching stuff our selves.
 
   # prevent warnings.
   exists $sthCache{$self} || ( $sthCache{$self} = {} );
@@ -268,6 +268,8 @@ Appends logging to the DBI interface, but limits to the executed
 sql-statements. Written to support all the DBD::Drivers out there, but
 some (like Oracle) might cause problems.
 
+Do not expect to overload the DBI without any consequences.
+
 =head1 REQUIRMENTS
 
 DBI, DBD::Something, IO::File & Carp
@@ -318,13 +320,21 @@ The compiled statement.
 
 =head2 rest
 
-Any excess parameters to the function that DBD::Log couldn't parse.
+Any excess parameters to the function that DBD::Log could not parse.
 
 =head1 BUGS / QUIRKS / CAVEATS
+
+=head2 This does not work well with DBD::Something!
 
 I have not had the opportunity, nor the time, to test this package
 against all the DBD::Drivers out there. Things might break do to your
 specific needs.
+
+=head2 Why is $dbh->{mysql_insertid} empty?
+
+Since the real DBI is stored in ->dbi, all those special flags are
+stored there 2. To get to mysql_insert_id(), go fetch
+$dbi->dbi->{mysql_insert_id}
 
 =head1 SEE ALSO
 

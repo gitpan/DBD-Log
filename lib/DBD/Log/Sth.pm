@@ -1,11 +1,12 @@
 package DBD::Log::Sth;
 
 # hartog/20041208
+# hartog/20050525 - 0.11 - backtracing added
 
 use base 'DBD::Log';
 
 BEGIN {
-  $DBD::Log::Sth::VERSION = "0.10";
+  $DBD::Log::Sth::VERSION = "0.11";
 }
 
 use strict;
@@ -101,7 +102,11 @@ sub composeStatement {
     }
 
     $statement = join("", @parts);
-    @bound = splice(@bound, $#parts+1, $#bound);
+    if ( ($#parts+1) < $#bound ) {
+      @bound = splice(@bound, $#parts+1, $#bound);
+    } else {
+      @bound = ();
+    }
 
   } elsif ( $statement =~ /\:\w+/ ) {
     # oracle style replacement
@@ -168,7 +173,39 @@ foreach my $sub ( qw( execute bind_param execute_array bind_param_array bind_par
     logAction($sub, $self, @bound) if $sub =~ /execute/;
     logCall($sub, @_) if $sub !~ /execute/;
 
-    return $self->sth->$sub(@rest);
+    my $res = $self->sth->$sub(@rest);
+
+    if ( my $error = ( $self->dbi->errstr || $self->sth->errstr ) ) {
+
+      my @backtrace;
+
+      # walk through the backtrace trying to find the error.
+      for ( 0..5 ) {
+	my ( $package, $filename, $line, @xtra ) = caller($_);
+
+	last if !caller($_);
+
+	if ( $package =~ /dbd/i ) {
+	  # this is me - ignore.
+
+	} elsif ( $package =~ /dbi/i ) {
+	  # this is the dbi - ignore
+
+	} else {
+	  $self->dbi->{dbd_log_error} = "$error in $filename at line $line\n";
+
+	}
+
+	unshift @backtrace, ( "$xtra[0](" .
+			      join(", ", @{$xtra[1]}) .
+			      ") at $filename line $line."
+			    );
+      }
+
+      $self->dbi->{dbd_log_backtrace} = join("\n", @backtrace);
+    }
+
+    return $res;
   };
 
 }
@@ -241,9 +278,23 @@ fetchall_arrayref fetchrow_hashref fetchall_hashref rows
 
 L<DBD::Log>
 
-=head1 BUGS / QUIRKS / CAVEATS
+=head1 BUGS / QUIRKS
 
 None, so far.
+
+=head1 CAVEATS
+
+Because the actual call of $sth->whatever() is made inside this
+package, the messages you receive from the DBI seem to originate from
+DBD/Log/Sth.pm.
+
+This is anoying, therefor a backtrace is created and stored in
+DBI->{dbd_log_backtrace}
+
+An attempt is made to find the most suitable entry on the backtrace
+and it is stored in DBI->{dbd_log_error}
+
+ATTENTION: please also see the CAVEATS section DBD::Log
 
 =head1 AUTHOR
 
